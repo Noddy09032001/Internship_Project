@@ -4,6 +4,8 @@ from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()   # declare the thing for orm mappings and classes
 
+"""creating the doctor table to store the information about the doctors available"""
+
 class Doctor(Base):
     __tablename__ = "Doctor"
 
