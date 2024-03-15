@@ -1,12 +1,15 @@
-import flask
 from flask import Flask, request, jsonify
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-import pymysql
+from controllers.File_Controller import File_Controller
+from services.File_Service import File_Service
+from services.Patient_Service import Patient_Service
+from services.Scan_Service import Scan_Service
+
 """importing the pymysql module for establishing connection with the database"""
 
-from controllers.Dicom_Processor import Dicom_Processor
+from services.Dicom_Processor import Dicom_Processor
 from entities.Patient import Patient, Base as PatientBase
 from entities.Patient import CTScan, Base as CTScanBase
 from entities.Doctor import Doctor,Base as DoctorBase
@@ -39,7 +42,7 @@ session = Session()
 def welcome_page():
     return "Welcome to the code of the final internship project"
 
-@app.route("/add_doctor", methods = ['POST'])
+@app.route("/doctor", methods = ['POST'])
 def add_doctor():
     data = request.json
 
@@ -53,16 +56,10 @@ def add_doctor():
     doctor_id = data['doctor_id']
     speciality = data['speciality']
 
-    # Create a new doctor object
-    new_doctor = Doctor(name=name, doctor_id=doctor_id, speciality=speciality)
-
-    # Add the doctor to the database session
-    session.add(new_doctor)
-    session.commit()
-
+    Doctor_Service.add_doctor(name,doctor_id,speciality,session)
     return jsonify({'message': 'Doctor added successfully'}), 201
     # function to get the details of a particular doctor based on the doctor id
-@app.route('/get_doctor_details', methods=['GET'])
+@app.route('/doctor_details', methods=['GET'])
 def get_doctor_details():
     doctor_id = request.args.get('doctor_id')
     doctor_details = Doctor_Service.get_doctor_details(doctor_id)
@@ -73,7 +70,7 @@ def get_doctor_details():
 
 """==============================================================================================================================="""
 
-@app.route('/add_patient', methods=['POST'])
+@app.route('/patient', methods=['POST'])
 def add_patient():
     data = request.get_json()
 
@@ -87,84 +84,43 @@ def add_patient():
     age = data['age']
     gender = data['gender']
 
-    # Create a new patient object
-    new_patient = Patient(name=name, age=age, gender=gender)
-
-    # Add the patient to the database session
-    session.add(new_patient)
-    session.commit()
-
+    Patient_Service.add_patient(name,age,gender,session)
     return jsonify({'message': 'Patient added successfully'}), 201
 
 """=============================================================================================================================="""
 
-@app.route("/upload_scan", methods=['POST'])
-def process_dicom():
+@app.route("/dicom", methods = ['POST'])
+def get_image():
     if request.method == 'POST':
-        dicom_image_path = request.files['dicom_image_path']
-        if dicom_image_path.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
+        dicom_image = request.files['dicom_image']
+        name_file = request.form['name_file']
+        file_path = File_Controller.get_saved_file_path(dicom_image, name_file)
+        dicom_image.save(file_path)
 
-        # Save the uploaded file to a location
-        file_path = "/Users/niranjand/Desktop/Final_Project/Final_Internship_Project/" + dicom_image_path.filename
-        dicom_image_path.save(file_path)
 
-        # Pass the file path to your controller function for processing
-        # Create an instance of the Dicom_Processor class
-        processor = Dicom_Processor()
+        return f"File name stored is: {file_path}"
 
-        result = processor.get_processed_data(file_path)
+@app.route("/scan", methods = ['POST'])
+def get_file_list():
+    if request.method == 'POST':
+        name_file = request.form['name_file']
+        directory = "/Users/niranjand/Desktop/Final_Project/Final_Internship_Project/"
+        extension = ".dcm"
+        names = f"_{name_file}{extension}"
+        print(names)
 
-        # Check if the patient already exists in the database
-        patient = session.query(Patient).filter_by(name=result['patient_name']).first()
+        result = File_Service.get_files(directory=directory, search_name=names)
 
-        # Check if the patient already exists in the database
-        patient = session.query(Patient).filter_by(name=result['patient_name']).first()
+        # now since we have the file pass this to the ImageProcessor to get the extracted data from the image
+        """the dicom_data has the metadata extracted in the dictionary format"""
+        dicom_data = Dicom_Processor.get_processed_data(result[0])
 
-        if patient:
-            # Check if the patient has an existing scan
-            existing_scan = session.query(CTScan).filter_by(patient_id=patient.id).first()
-            if existing_scan:
-                # Patient has an existing scan, update the existing scan object
-                existing_scan.study_date = result.get('study_date')
-                existing_scan.series_description = result.get('series_description')
-                existing_scan.organ_type = result.get('organ_type')
-                existing_scan.study_description = result.get('study_description')
-            else:
-                # Patient does not have an existing scan, create a new row with the scan object
-                new_scan = CTScan(
-                    patient_id=patient.id,
-                    study_date=result.get('study_date'),
-                    series_description=result.get('series_description'),
-                    organ_type=result.get('organ_type'),
-                    study_description=result.get('study_description')
-                )
-                session.add(new_scan)
-        else:
-            # Patient does not exist, create a new patient and associated CTScan object
-            new_patient = Patient(
-                name=result['patient_name'],
-                # Add other patient attributes here like age, gender if needed
-            )
-            session.add(new_patient)
-            session.flush()  # Ensure the new_patient object gets an ID before referencing it
+        Scan_Service.add_scan(dicom_data, session)
 
-            new_scan = CTScan(
-                patient_id=new_patient.id,
-                study_date=result.get('study_date'),
-                series_description=result.get('series_description'),
-                organ_type=result.get('organ_type'),
-                study_description=result.get('study_description')
-            )
-            session.add(new_scan)
+        print(result)
+        return jsonify(dicom_data)  # Return the processed data as JSON
 
-        # Commit the changes to the database
-        session.commit()
 
-        # Close the session
-        session.close()
-
-        return jsonify(result)  # Return the processed data as JSON
 
 if __name__ == "__main__":
     app.run(debug=True)

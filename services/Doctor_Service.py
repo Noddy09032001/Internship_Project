@@ -4,19 +4,7 @@ from sqlalchemy.orm import sessionmaker
 
 from entities.Doctor import Doctor
 
-
 class Doctor_Service:
-    def __init__(self, connection_url):
-        # creating the connection url for the same purpose
-        #connection_url = "mysql://username:password@hostname/database_name"
-
-        self.engine = create_engine(connection_url, echo=True)
-        self.Base = declarative_base()
-        self.Session = sessionmaker(bind = self.engine)
-
-    """function to create the table doctors inside the database"""
-    def create_tables(self):
-        self.Base.metadata.create_all(self.engine)
 
     """function to add the doctors to the database"""
     def add_doctor(self, name, doctor_id, speciality):
