@@ -6,9 +6,8 @@ from entities.Doctor import Doctor
 
 class Doctor_Service:
 
-    """function to add the doctors to the database"""
-    def add_doctor(self, name, doctor_id, speciality):
-        session = self.Session()
+    @staticmethod
+    def add_doctor(name, doctor_id, speciality, session):
         doctor = Doctor(name=name, doctor_id=doctor_id, speciality=speciality)
         session.add(doctor)
         session.commit()

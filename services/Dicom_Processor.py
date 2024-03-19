@@ -5,7 +5,8 @@ the dcmread function reads the dicom file through the path provided """
 
 
 class Dicom_Processor:
-    def get_processed_data(self,file_path):
+    @staticmethod
+    def get_processed_data(file_path):
         dicom_data = pdcom.dcmread(file_path)
 
         # storing the metadata in the image as a form of dictionary to return to the calling functions

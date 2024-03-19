@@ -1,8 +1,11 @@
+import threading
+
 from flask import Flask, request, jsonify
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-
+from configFiles.config import Config
 from controllers.File_Controller import File_Controller
+from database_configurations.setup import setup_database
 from services.File_Service import File_Service
 from services.Patient_Service import Patient_Service
 from services.Scan_Service import Scan_Service
@@ -10,32 +13,10 @@ from services.Scan_Service import Scan_Service
 """importing the pymysql module for establishing connection with the database"""
 
 from services.Dicom_Processor import Dicom_Processor
-from entities.Patient import Patient, Base as PatientBase
-from entities.Patient import CTScan, Base as CTScanBase
-from entities.Doctor import Doctor,Base as DoctorBase
 from services.Doctor_Service import Doctor_Service
 
 app = Flask(__name__)
-
-connection_url = "mysql+pymysql://root:arthrex09032001@localhost/FinalProject"
-engine = create_engine(connection_url)
-
-"""manages the connection to the database
-also helps in connection pooling and handling of the transactions towards the database we have created"""
-
-"""
-the create_all() is used to create all the tables in the database 
-"""
-PatientBase.metadata.create_all(engine)
-CTScanBase.metadata.create_all(engine)
-DoctorBase.metadata.create_all(engine)
-
-"""ye session just hibernate ke session ke tarah hota hai which allows communication
-with the database. Same procedure as we do in hibernate"""
-# Create a session to interact with the database
-Session = sessionmaker(bind=engine)
-session = Session()
-
+session = setup_database(app)   # importing this from the database_configurations package which has the code to setup the db
 
 # the entry point or the main function of the code, we will get redirected here on the first call
 @app.route("/")
@@ -104,7 +85,7 @@ def get_image():
 def get_file_list():
     if request.method == 'POST':
         name_file = request.form['name_file']
-        directory = "/Users/niranjand/Desktop/Final_Project/Final_Internship_Project/"
+        directory = Config.directory   #"/Users/niranjand/Desktop/Final_Project/Final_Internship_Project/"
         extension = ".dcm"
         names = f"_{name_file}{extension}"
         print(names)
@@ -120,7 +101,38 @@ def get_file_list():
         print(result)
         return jsonify(dicom_data)  # Return the processed data as JSON
 
+@app.route("/dicom", methods=['POST'])
+def process_dicom_images():
+    if 'dicom_images' not in request.files:
+        return jsonify({'error': 'No DICOM images provided'})
 
+    dicom_images = request.files.getlist('dicom_images')
+    name_files = request.form.getlist('name_files')
+    responses = []
+
+    if len(dicom_images) != len(name_files):
+        return jsonify({'error': 'Number of images and filenames do not match'})
+
+    def process_image(dicom_image, name_file):
+        file_path = Config.directory + name_file  # Adjust this path according to your system
+        dicom_image.save(file_path)
+        processed_data = Dicom_Processor.get_processed_data(file_path)
+        responses.append({'file_name': name_file, 'file_path': file_path, 'processed_data': processed_data})
+
+    threads = []
+    for dicom_image, name_file in zip(dicom_images, name_files):
+        thread = threading.Thread(target=process_image, args=(dicom_image, name_file))
+        threads.append(thread)
+
+    # Start all threads
+    for thread in threads:
+        thread.start()
+
+    # Wait for all threads to finish
+    for thread in threads:
+        thread.join()
+
+    return jsonify({'status': 'Processing complete', 'responses': responses})
 
 if __name__ == "__main__":
     app.run(debug=True)
