@@ -6,6 +6,7 @@ class Scan_Service:
     def add_scan(result, session_object):
         # Check if the patient already exists in the database
         patient = session_object.query(Patient).filter_by(name=result['patient_name']).first()
+        print(patient)
 
         if patient:
             # Check if the patient has an existing scan
@@ -26,6 +27,7 @@ class Scan_Service:
                     study_description=result.get('study_description')
                 )
                 session_object.add(new_scan)
+                print("added scan successfully")
         else:
             # Patient does not exist, create a new patient and associated CTScan object
             new_patient = Patient(

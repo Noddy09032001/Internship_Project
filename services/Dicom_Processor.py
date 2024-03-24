@@ -19,3 +19,16 @@ class Dicom_Processor:
         }
         return processed_data  # returning as a form of a dictionary
 
+    """utility function to update the name of the patient in the dicom file which we have"""
+    @staticmethod
+    def update_processed_data(file_path):
+        dicom_data = pdcom.dcmread(file_path)
+        name = input("Name to be updated: ")
+        processed_data = {
+            'patient_name': str(name),
+            'study_date': str(dicom_data.StudyDate),
+            'series_description': str(dicom_data.SeriesDescription),
+            'organ_type': str(dicom_data.BodyPartExamined),
+            'study_description': str(dicom_data.StudyDescription)
+        }
+        return processed_data  # returning as a form of a dictionary

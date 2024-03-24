@@ -1,3 +1,4 @@
+import json
 import threading
 
 from flask import Flask, request, jsonify
@@ -16,7 +17,15 @@ from services.Dicom_Processor import Dicom_Processor
 from services.Doctor_Service import Doctor_Service
 
 app = Flask(__name__)
-session = setup_database(app)   # importing this from the database_configurations package which has the code to setup the db
+
+# Load config
+with open('configFiles/config.json', 'r') as cfg_files:
+    config = json.load(cfg_files)
+    directory = config['directory']
+    connection_url = config['connection_url']
+
+session = setup_database(app, connection_url) # importing this from the database_configurations package which has the code to setup the db
+
 
 # the entry point or the main function of the code, we will get redirected here on the first call
 @app.route("/")
@@ -37,9 +46,14 @@ def add_doctor():
     doctor_id = data['doctor_id']
     speciality = data['speciality']
 
+    existing_doctor = Doctor_Service.check_duplicates(name, doctor_id, speciality, session)
+    if existing_doctor:
+        return jsonify({'error': 'Patient with these credentials already exist in the database'}), 409
+
     Doctor_Service.add_doctor(name,doctor_id,speciality,session)
     return jsonify({'message': 'Doctor added successfully'}), 201
-    # function to get the details of a particular doctor based on the doctor id
+
+# function to get the details of a particular doctor based on the doctor id
 @app.route('/doctor_details', methods=['GET'])
 def get_doctor_details():
     doctor_id = request.args.get('doctor_id')
@@ -65,6 +79,12 @@ def add_patient():
     age = data['age']
     gender = data['gender']
 
+    """checking if the patient already exists"""
+
+    existing_patient = Patient_Service.check_for_duplicates(name, age, gender, session)
+    if existing_patient:
+        return jsonify({'error': 'Patient with these credentials already exist in the database'}), 409
+
     Patient_Service.add_patient(name,age,gender,session)
     return jsonify({'message': 'Patient added successfully'}), 201
 
@@ -85,12 +105,12 @@ def get_image():
 def get_file_list():
     if request.method == 'POST':
         name_file = request.form['name_file']
-        directory = Config.directory   #"/Users/niranjand/Desktop/Final_Project/Final_Internship_Project/"
+        search_directory = directory   #"/Users/niranjand/Desktop/Final_Project/Final_Internship_Project/"
         extension = ".dcm"
-        names = f"_{name_file}{extension}"
+        names = f"{name_file}{extension}"
         print(names)
 
-        result = File_Service.get_files(directory=directory, search_name=names)
+        result = File_Service.get_files(directory=search_directory, search_name=names)
 
         # now since we have the file pass this to the ImageProcessor to get the extracted data from the image
         """the dicom_data has the metadata extracted in the dictionary format"""
@@ -101,7 +121,7 @@ def get_file_list():
         print(result)
         return jsonify(dicom_data)  # Return the processed data as JSON
 
-@app.route("/dicom", methods=['POST'])
+@app.route("/dicom1", methods=['POST'])
 def process_dicom_images():
     if 'dicom_images' not in request.files:
         return jsonify({'error': 'No DICOM images provided'})
@@ -114,7 +134,8 @@ def process_dicom_images():
         return jsonify({'error': 'Number of images and filenames do not match'})
 
     def process_image(dicom_image, name_file):
-        file_path = Config.directory + name_file  # Adjust this path according to your system
+        extensions = ".dcm"
+        file_path = directory + name_file + extensions
         dicom_image.save(file_path)
         processed_data = Dicom_Processor.get_processed_data(file_path)
         responses.append({'file_name': name_file, 'file_path': file_path, 'processed_data': processed_data})

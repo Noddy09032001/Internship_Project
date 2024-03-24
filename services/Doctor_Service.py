@@ -13,6 +13,11 @@ class Doctor_Service:
         session.commit()
         session.close()
 
+    @staticmethod
+    def check_duplicates(name, doctor_id, speciality, session_object):
+        existing_doctor = session_object.query(Doctor).filter_by(name=name, doctor_id=doctor_id, speciality=speciality).first()
+        return existing_doctor
+
     """get doctor details based on a particular id"""
     def get_doctor_details(self, doctor_id):
         session = self.Session()

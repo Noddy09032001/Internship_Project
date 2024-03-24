@@ -6,9 +6,9 @@ from entities.Patient import Patient, Base as PatientBase
 from entities.Patient import CTScan, Base as CTScanBase
 from entities.Doctor import Doctor,Base as DoctorBase
 
-def setup_database(app):
+def setup_database(app, connection_url):
     # Retrieve connection URL from app config
-    connection_url = Config.connection_url
+    connection_url = connection_url
     engine = create_engine(connection_url)
 
     # Create tables
